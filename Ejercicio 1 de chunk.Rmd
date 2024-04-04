@@ -1,0 +1,117 @@
+---
+title: "Grafica de dispersion"
+author: "Mariano Guerra"
+date: "2024-03-22"
+output: html_document
+---
+
+Ejecucion de paquetes 
+```{r}
+library(pacman)
+
+p_load("readr","ggplot2","dplyr","ggrepel")
+
+
+```
+LLamado de la base de datos , si quiero llamar una base de datos solo cambiar lo que este entre comillas 
+
+```{r}
+datos<-read_csv(file="https://raw.githubusercontent.com/ManuelLaraMVZ/Transcript-mica/main/datos_miRNAs.csv")
+
+head(datos)
+
+```
+Procesamiento de los controles
+
+1.Extraer los genes de referencia que tienen el nombre de controles.
+Se generara una nueva base de datos
+2.Obtener el promedio d elas columnwas 
+
+```{r}
+controles<- datos %>% 
+  filter(Condicion=="Control")
+
+head(controles)
+
+promedios_control<- controles %>% 
+  summarise (Mean_C1= mean(Cx1), 
+             Mean_C2= mean(Cx2),
+             Mean_C3= mean(Cx3),
+             Mean_T1= mean(T1),
+             Mean_T2= mean(T2),
+             Mean_T3= mean(T3)) %>% 
+  mutate(Gen="Promedio_control") %>% 
+  select(7,1,2,3,4,5,6)
+
+promedios_control
+```
+
+Obtener solamente los genes de interes con la etiqueta de Target en la segunda columna
+```{r}
+ genes<-datos %>% 
+    filter(Condicion=="Target") %>% 
+  select(-2)
+  head(genes)
+```
+Obtener el Delta Ct (de cada gen en cada columna )
+```{r}
+DCT<-genes %>% 
+  mutate(DCT_C1=2^-(Cx1-promedios_control$Mean_C1),
+         DCT_C2=2^-(Cx2-promedios_control$Mean_C2),
+         DCT_C3=2^-(Cx3-promedios_control$Mean_C3),
+         DCT_T1=2^-(T1-promedios_control$Mean_T1),
+         DCT_T2=2^-(T2-promedios_control$Mean_T2),
+         DCT_T3=2^-(T3-promedios_control$Mean_T3)) %>% 
+  select(-2,-3,-4,-5,-6,-7)
+DCT
+```
+
+```{r}
+promedio_genes<-DCT %>% 
+  mutate(Mean_DCT_Cx=(DCT_C1+DCT_C2+DCT_C3)/3,
+         Mean_DCT_Tx=(DCT_T1+DCT_T2+DCT_T3)/3)
+
+promedio_genes
+```
+```{r}
+head(promedio_genes)
+
+top_10<-promedio_genes %>% 
+  select(1,8,9) %>% 
+  top_n(10,Mean_DCT_Cx) %>% 
+  arrange(desc(Mean_DCT_Cx))
+
+head(top_10)
+```
+
+```{r}
+grafica_dispersion <- ggplot(promedio_genes,
+                         mapping = aes(x=Mean_DCT_Cx,
+                                       y=Mean_DCT_Tx))+
+  geom_point(size= 2, color ="blue") +
+  labs(title="condicion control vs tratamiento",
+       caption = "Creadora: Michelle Clempner",
+       x=expression("control 2"^"-DCT"),
+       y=expression("tratamiento 2"^"-DCT"))+
+  geom_smooth(method="lm", color= "black")+
+  theme_minimal()+
+  theme(
+    panel.background = element_rect(fill ="white"),
+    panel.grid.major = element_blank(),
+    axis.text = element_text(family = "Times New Roman", size = 12),
+    axis.title = element_text(family = "Times New Roman", size = 14, face = "bold"),
+    legend.title = element_text(family = "Times New Roman", size = 14),
+    legend.text = element_text(family = "Times New Roman", size = 14)
+  )+
+  geom_label_repel(data= top_10,
+                   mapping = aes(x=Mean_DCT_Cx,
+                                 y=Mean_DCT_Tx,
+                                 label= Gen),
+                   label.padding = unit(0.2, "lines"))
+  
+  
+grafica_dispersion
+```
+
+
+
